@@ -16,7 +16,10 @@ android {
         versionCode = 1
         versionName = "1.0"
         // Jen architektury telefonů (bez emulátorů x86) – menší APK.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // -Parm64Only=true sestaví menší APK jen pro 64bit telefony.
+        ndk {
+            abiFilters += if (project.hasProperty("arm64Only")) listOf("arm64-v8a") else listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     signingConfigs {
