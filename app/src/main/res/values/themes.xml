@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Obchodsken" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#0050AA</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+    </style>
+</resources>
