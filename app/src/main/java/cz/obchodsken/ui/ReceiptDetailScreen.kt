@@ -241,8 +241,11 @@ private fun ItemRow(item: ItemEntity, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        ProductThumb(item.imageUrl, Category.of(item.category))
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(item.name, style = MaterialTheme.typography.bodyLarge)
+            item.brand?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
             val details = buildList {
                 if (item.rawName != item.name) add(item.rawName)
                 if (item.quantity != 1.0 || item.unit == "kg") {

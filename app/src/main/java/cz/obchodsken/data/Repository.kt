@@ -8,7 +8,6 @@ import cz.obchodsken.ocr.ReceiptOcr
 import cz.obchodsken.parser.Category
 import cz.obchodsken.parser.Money
 import cz.obchodsken.parser.ParsedReceipt
-import cz.obchodsken.parser.ProductInfo
 import cz.obchodsken.parser.ProductNames
 import cz.obchodsken.parser.ReceiptParser
 import kotlinx.coroutines.CoroutineScope
@@ -50,6 +49,7 @@ data class ImportState(
 class Repository(private val context: Context, private val db: AppDatabase, private val scope: CoroutineScope) {
     val dao = db.dao()
     private val ocr by lazy { ReceiptOcr() }
+    val catalog = Catalog(context, dao)
     private val importMutex = Mutex()
 
     private val _import = MutableStateFlow(ImportState())
@@ -98,22 +98,25 @@ class Repository(private val context: Context, private val db: AppDatabase, priv
             ?: return@withContext ImportOutcome.NotReceipt("Obrázek se nepodařilo načíst")
         val result = ocr.recognize(bitmap)
         try {
-            val parsed = ReceiptParser.parse(result.rows)
-            if (parsed.items.isEmpty() && parsed.total == null) {
-                return@withContext ImportOutcome.NotReceipt("Na obrázku jsem nenašel účtenku")
-            }
-            parsed.uniqueKey?.let { key -> dao.findByKey(key)?.let { return@withContext ImportOutcome.Duplicate(it) } }
-            val imagePath = saveImage(result.bitmap)
-            val id = save(parsed, result.rows, imagePath)
-            ImportOutcome.Saved(id, parsed.warnings.firstOrNull())
+            importRows(result.rows) { saveImage(result.bitmap) }
         } finally {
             if (result.bitmap !== bitmap) result.bitmap.recycle()
             bitmap.recycle()
         }
     }
 
-    private suspend fun learned(): Map<String, ProductInfo> =
-        dao.mappings().associate { it.rawKey to ProductInfo(it.name, Category.of(it.category)) }
+    /** Vše po OCR: rozbor textu, kontrola duplicity, spárování s katalogem, uložení. */
+    suspend fun importRows(rows: List<String>, saveImage: () -> String? = { null }): ImportOutcome {
+        val parsed = ReceiptParser.parse(rows)
+        if (parsed.items.isEmpty() && parsed.total == null) {
+            return ImportOutcome.NotReceipt("Na obrázku jsem nenašel účtenku (přečteno ${rows.size} řádků textu)")
+        }
+        parsed.uniqueKey?.let { key -> dao.findByKey(key)?.let { return ImportOutcome.Duplicate(it) } }
+        val id = save(parsed, rows, saveImage())
+        return ImportOutcome.Saved(id, parsed.warnings.firstOrNull())
+    }
+
+    private suspend fun learned(): Map<String, NameMappingEntity> = dao.mappings().associateBy { it.rawKey }
 
     private suspend fun save(parsed: ParsedReceipt, rows: List<String>, imagePath: String?): Long {
         val learned = learned()
@@ -133,15 +136,30 @@ class Repository(private val context: Context, private val db: AppDatabase, priv
         return dao.insertReceiptWithItems(receipt, toItems(parsed, learned))
     }
 
-    private fun toItems(parsed: ParsedReceipt, learned: Map<String, ProductInfo>): List<ItemEntity> =
+    /**
+     * Pořadí rozpoznání názvu: 1) ruční oprava uživatele, 2) katalog produktů, 3) slovník zkratek.
+     */
+    private suspend fun toItems(parsed: ParsedReceipt, learned: Map<String, NameMappingEntity>): List<ItemEntity> =
         parsed.items.mapIndexed { i, it ->
-            val info = ProductNames.describe(it.rawName, learned)
-            ItemEntity(
-                receiptId = 0, position = i, rawName = it.rawName, rawKey = ProductNames.key(it.rawName),
-                name = info.name, category = info.category.name, quantity = it.quantity, unit = it.unit,
+            val rawKey = ProductNames.key(it.rawName)
+            val base = ItemEntity(
+                receiptId = 0, position = i, rawName = it.rawName, rawKey = rawKey,
+                name = it.rawName, category = Category.OSTATNI.name, quantity = it.quantity, unit = it.unit,
                 unitPrice = it.unitPrice, price = it.price, discount = it.discount,
                 discountLabel = it.discountLabel, vat = it.vat, articleCode = it.articleCode,
             )
+            val cat = catalog.matchReceiptItem(parsed.store, it.rawName)
+            val mapping = learned[rawKey]
+            when {
+                mapping != null -> base.copy(
+                    name = mapping.name, category = mapping.category,
+                    imageUrl = mapping.imageUrl ?: cat?.imageUrl, brand = cat?.brand, catalogId = cat?.id,
+                )
+                cat != null -> base.copy(
+                    name = cat.name, category = cat.category, brand = cat.brand, imageUrl = cat.imageUrl, catalogId = cat.id,
+                )
+                else -> ProductNames.describe(it.rawName).let { info -> base.copy(name = info.name, category = info.category.name) }
+            }
         }
 
     /** Znovu zpracuje uložený text z OCR (např. po vylepšení parseru). Ruční úpravy položek se přepíšou. */
@@ -176,7 +194,7 @@ class Repository(private val context: Context, private val db: AppDatabase, priv
     suspend fun updateItem(item: ItemEntity, applyToAll: Boolean) {
         dao.updateItem(item)
         if (applyToAll) {
-            dao.upsertMapping(NameMappingEntity(item.rawKey, item.name, item.category))
+            dao.upsertMapping(NameMappingEntity(item.rawKey, item.name, item.category, item.imageUrl ?: dao.mapping(item.rawKey)?.imageUrl))
             dao.renameAll(item.rawKey, item.name, item.category)
         }
         recalcWarning(item.receiptId)
@@ -229,6 +247,17 @@ class Repository(private val context: Context, private val db: AppDatabase, priv
     suspend fun lookupBarcode(code: String, forceOnline: Boolean = false): BarcodeResult {
         var product = dao.product(code)
         var offline = false
+        if (product == null) {
+            // 1) přibalený katalog – offline a zdarma
+            catalog.byEan(code)?.let { c ->
+                product = ProductEntity(
+                    barcode = code, name = c.name, brand = c.brand, quantity = c.quantity, category = c.category,
+                    imageUrl = c.imageUrl, nutriscore = null, ingredients = null,
+                    source = "Katalog" + (c.store?.let { " ($it)" } ?: ""), linkedRawKey = null,
+                )
+                dao.upsertProduct(product!!)
+            }
+        }
         if (product == null || forceOnline) {
             val online = try { ProductLookup.lookup(code) } catch (e: Exception) { offline = true; null }
             if (online != null) {
@@ -236,16 +265,18 @@ class Repository(private val context: Context, private val db: AppDatabase, priv
                 dao.upsertProduct(product)
             }
         }
-        val history = product?.linkedRawKey?.let { dao.historyByRawKey(it) } ?: emptyList()
-        val suggestions = if (product != null && product.linkedRawKey == null) {
-            val n = product.name + " " + (product.brand ?: "")
+        val p = product
+        if (p == null) dao.addUnknownCode(UnknownCodeEntity(code)) else dao.removeUnknownCode(code)
+        val history = p?.linkedRawKey?.let { dao.historyByRawKey(it) } ?: emptyList()
+        val suggestions = if (p != null && p.linkedRawKey == null) {
+            val n = p.name + " " + (p.brand ?: "")
             dao.rawNames()
                 .map { it to maxOf(ProductNames.similarity(n, it.rawName), ProductNames.similarity(n, it.name)) }
                 .filter { it.second >= 0.5 }
                 .sortedByDescending { it.second }
                 .take(5).map { it.first }
         } else emptyList()
-        return BarcodeResult(product, history, suggestions, offline)
+        return BarcodeResult(p, history, suggestions, offline)
     }
 
     suspend fun saveManualProduct(code: String, name: String, category: Category, linkedRawKey: String?) {
@@ -260,7 +291,34 @@ class Repository(private val context: Context, private val db: AppDatabase, priv
     }
 
     suspend fun linkProduct(code: String, rawKey: String?) {
-        dao.product(code)?.let { dao.upsertProduct(it.copy(linkedRawKey = rawKey, updatedAt = System.currentTimeMillis())) }
+        val p = dao.product(code) ?: return
+        dao.upsertProduct(p.copy(linkedRawKey = rawKey, updatedAt = System.currentTimeMillis()))
+        // Fotka produktu se od teď ukáže i u položek na účtenkách.
+        if (rawKey != null && p.imageUrl != null) {
+            dao.setImageForRawKey(rawKey, p.imageUrl)
+            val m = dao.mapping(rawKey)
+            if (m != null) dao.upsertMapping(m.copy(imageUrl = m.imageUrl ?: p.imageUrl))
+            else dao.historyByRawKey(rawKey).firstOrNull()?.let {
+                dao.upsertMapping(NameMappingEntity(rawKey, it.name, it.category, p.imageUrl))
+            }
+        }
+    }
+
+    /** Seznam nerozpoznaných položek a čárových kódů – podklad pro doplnění katalogu. */
+    suspend fun exportUnmatched(): File = withContext(Dispatchers.IO) {
+        val f = File(context.cacheDir, "export/nerozpoznane.txt").apply { parentFile?.mkdirs() }
+        val items = dao.unmatchedItems()
+        val codes = dao.unknownCodes()
+        f.bufferedWriter(Charsets.UTF_8).use { w ->
+            w.write("# Obchodsken – nerozpoznané produkty (${items.size} položek, ${codes.size} kódů)\n")
+            w.write("# Formát: obchod | název na účtence | počet nákupů\n\n")
+            items.forEach { w.write("${it.store} | ${it.rawName} | ${it.count}\n") }
+            if (codes.isNotEmpty()) {
+                w.write("\n# Čárové kódy\n")
+                codes.forEach { w.write("EAN | ${it.code}\n") }
+            }
+        }
+        f
     }
 
     suspend fun rawNames(): List<RawNameCount> = dao.rawNames()

@@ -60,7 +60,27 @@ fun ProductsScreen(nav: NavHostController) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Položky (${all.size})") }, windowInsets = WindowInsets(0.dp))
+        val unmatched by repo.dao.unmatchedCount().collectAsState(initial = 0)
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val scope = rememberCoroutineScope()
+        TopAppBar(
+            title = { Text("Položky (${all.size})") },
+            windowInsets = WindowInsets(0.dp),
+            actions = {
+                if (unmatched > 0) androidx.compose.material3.TextButton(onClick = {
+                    scope.launch {
+                        val f = repo.exportUnmatched()
+                        val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        ctx.startActivity(android.content.Intent.createChooser(send, "Nerozpoznané produkty"))
+                    }
+                }) { Text("Nerozpoznané: $unmatched") }
+            },
+        )
         OutlinedTextField(
             query, { query = it }, leadingIcon = { Icon(Icons.Default.Search, null) },
             placeholder = { Text("Hledat produkt") }, singleLine = true,

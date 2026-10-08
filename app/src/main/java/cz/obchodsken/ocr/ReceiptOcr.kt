@@ -16,6 +16,7 @@ import cz.obchodsken.parser.RowBuilder
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import java.io.InputStream
 import kotlin.math.atan2
 
 suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { cont ->
@@ -112,10 +113,14 @@ class ReceiptOcr {
          * Načte obrázek, otočí podle EXIF a zmenší: fotky na max. 3000 px,
          * vysoké screenshoty na šířku max. 1440 px.
          */
-        fun loadBitmap(context: Context, uri: Uri): Bitmap? {
-            val cr = context.contentResolver
+        fun loadBitmap(context: Context, uri: Uri): Bitmap? =
+            loadBitmap { context.contentResolver.openInputStream(uri) }
+
+        /** [open] musí pokaždé vrátit nový stream (obrázek se čte víckrát: rozměry, data, EXIF). */
+        fun loadBitmap(open: () -> InputStream?): Bitmap? {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+            // Při inJustDecodeBounds vrací decodeStream vždy null – výsledek je jen v bounds.
+            (open() ?: return null).use { BitmapFactory.decodeStream(it, null, bounds) }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
             val tall = bounds.outHeight > bounds.outWidth * 2
             val limit = if (tall) 1440 else 3000
@@ -126,7 +131,7 @@ class ReceiptOcr {
                 inSampleSize = sample
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
-            var bmp = cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
+            var bmp = (open() ?: return null).use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
             val curDim = if (tall) bmp.width else maxOf(bmp.width, bmp.height)
             if (curDim > limit) {
                 val f = limit.toFloat() / curDim
@@ -135,7 +140,7 @@ class ReceiptOcr {
                 bmp = scaled
             }
             val orientation = try {
-                cr.openInputStream(uri)?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
+                open()?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
                     ?: ExifInterface.ORIENTATION_NORMAL
             } catch (e: Exception) {
                 ExifInterface.ORIENTATION_NORMAL

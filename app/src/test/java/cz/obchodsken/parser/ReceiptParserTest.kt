@@ -135,9 +135,34 @@ class ReceiptParserTest {
         assertEquals("Toaletní papír 8 ks", ProductNames.expand("Toal.papír 8ks"))
     }
 
+    @Test fun all_items_from_real_receipts_get_a_proper_name() {
+        val files = listOf("e_1006.tsv", "e_2207.tsv", "e_1408.tsv", "e_3008.tsv", "e_2109.tsv", "e_0710a.tsv", "e_0710b.tsv")
+        val unknown = files.flatMap { f -> ReceiptParser.parse(loadRows(f)).items.map { it.rawName } }
+            .filterNot { ProductNames.isKnown(it) }
+        // OCR (tesseract) čte "Knäckebrot" jako "Knáckebrot" a "kápií" jako "kápii" – diakritika se při porovnání ignoruje
+        assertTrue("Nerozpoznané: $unknown", unknown.isEmpty())
+    }
+
     @Test fun money() {
         assertEquals(8990L, Money.parse("89,90"))
         assertEquals(-349L, Money.parse("-3,49"))
         assertEquals("1 234,50 Kč", Money.format(123450))
+    }
+}
+
+class NameMatcherTest {
+    private val m = NameMatcher(listOf("Odpad.pytle 35l" to 1, "Knäckebrot kukuř." to 2, "Mléko" to 3))
+
+    @Test fun ocrNoiseIsTolerated() {
+        assertEquals(1, m.find("Odpad.pytle 351"))      // l -> 1
+        assertEquals(2, m.find("Knáckebrot kukuř"))     // ä -> á, chybí tečka
+        assertEquals(2, m.find("Knackebrot kukur."))
+        assertEquals(1, m.find("Odpad.pytIe 35l"))      // I místo l
+        assertEquals(3, m.find("MLÉKO"))
+    }
+
+    @Test fun differentProductsDoNotMatch() {
+        assertEquals(null, m.find("Odpad.pytle 60l"))
+        assertEquals(null, m.find("Mák"))
     }
 }

@@ -36,12 +36,14 @@ object ProductNames {
         .replace(Regex("""\s*\.\s*"""), ".")
         .replace(Regex("""\s+"""), " ")
         .trim()
+        .trimEnd('.', ',', ':', ';', '*')
+        .trim()
 
     fun stripDiacritics(s: String): String =
         Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("""\p{Mn}+"""), "")
 
     // Celé názvy z Lidlu (klíč = key(raw)).
-    private val exact: Map<String, ProductInfo> = listOf(
+    private val exact: NameMatcher<ProductInfo> = NameMatcher(listOf(
         "Omáčka sladk.-kys" to ProductInfo("Omáčka sladkokyselá", Category.TRVANLIVE, "Asijská sladkokyselá omáčka"),
         "Odpad.pytle s uchy" to ProductInfo("Odpadkové pytle se zatahovacími uchy", Category.DROGERIE),
         "Odpad.pytle 35l" to ProductInfo("Odpadkové pytle 35 l", Category.DROGERIE),
@@ -104,7 +106,7 @@ object ProductNames {
         "Bagetka s párkem" to ProductInfo("Bagetka s párkem", Category.PECIVO, "Pečená bagetka s párkem"),
         "Kapsa třešňová" to ProductInfo("Kapsa třešňová (sladké pečivo)", Category.PECIVO),
         "Ovocná směs maliny" to ProductInfo("Ovocná směs s malinami – mražená", Category.MRAZENE),
-    ).associate { key(it.first) to it.second }
+    ))
 
     // Zkratky (klíč bez diakritiky, malými písmeny) -> plné slovo.
     private val abbreviations: Map<String, String> = mapOf(
@@ -160,12 +162,12 @@ object ProductNames {
     fun describe(raw: String, learned: Map<String, ProductInfo> = emptyMap()): ProductInfo {
         val k = key(raw)
         learned[k]?.let { return it }
-        exact[k]?.let { return it }
+        exact.find(raw)?.let { return it }
         val expanded = expand(raw)
         return ProductInfo(expanded, categorize(expanded + " " + raw))
     }
 
-    fun isKnown(raw: String): Boolean = exact.containsKey(key(raw))
+    fun isKnown(raw: String): Boolean = exact.find(raw) != null
 
     fun expand(raw: String): String {
         // "Kukuř.kuře.prs.ř." -> ["Kukuř.", "kuře.", "prs.", "ř."]

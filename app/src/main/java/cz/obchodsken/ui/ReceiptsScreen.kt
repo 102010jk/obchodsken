@@ -206,6 +206,9 @@ private fun ImportCard(s: cz.obchodsken.data.ImportState, onDismiss: () -> Unit)
                     if (s.withWarnings > 0) "\nK zkontrolování: ${s.withWarnings} (označené ⚠)" else "",
                 style = MaterialTheme.typography.bodySmall,
             )
+            s.lastError?.let {
+                Text("Poslední chyba: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }

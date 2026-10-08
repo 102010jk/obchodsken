@@ -1,6 +1,7 @@
 package cz.obchodsken.data
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -61,6 +62,10 @@ data class ItemEntity(
     val discountLabel: String?,
     val vat: String?,
     val articleCode: String?,
+    val brand: String? = null,
+    val imageUrl: String? = null,
+    /** Produkt z katalogu, se kterým se položka spárovala (null = nerozpoznáno katalogem). */
+    val catalogId: String? = null,
 )
 
 val ItemEntity.finalPrice: Long get() = price - discount
@@ -72,7 +77,38 @@ data class NameMappingEntity(
     @PrimaryKey val rawKey: String,
     val name: String,
     val category: String,
+    val imageUrl: String? = null,
 )
+
+/**
+ * Katalog produktů přibalený v aplikaci (assets/catalog (soubory .jsonl)) – připravený předem,
+ * aby rozpoznání produktů nic nestálo a fungovalo offline.
+ */
+@Entity(tableName = "catalog_products")
+data class CatalogProductEntity(
+    @PrimaryKey val id: String,
+    val store: String?,
+    val name: String,
+    val brand: String?,
+    val quantity: String?,
+    val category: String,
+    val imageUrl: String?,
+    val url: String?,
+    val source: String?,
+)
+
+@Entity(tableName = "catalog_eans", indices = [Index("productId")])
+data class CatalogEanEntity(@PrimaryKey val ean: String, val productId: String)
+
+/** Název, pod kterým je produkt vytištěný na účtence daného obchodu. */
+@Entity(tableName = "catalog_aliases", primaryKeys = ["store", "alias"], indices = [Index("productId")])
+data class CatalogAliasEntity(val store: String, val alias: String, val productId: String)
+
+/** Naskenované čárové kódy, které se nikde nenašly – k doplnění do katalogu. */
+@Entity(tableName = "unknown_codes")
+data class UnknownCodeEntity(@PrimaryKey val code: String, val scannedAt: Long = System.currentTimeMillis())
+
+data class UnmatchedItem(val store: String, val rawName: String, val name: String, val count: Int)
 
 /** Produkt podle čárového kódu (z Open Food Facts nebo zadaný ručně). */
 @Entity(tableName = "products", indices = [Index("linkedRawKey")])
@@ -161,6 +197,7 @@ interface AppDao {
     @Query("SELECT * FROM items WHERE receiptId = :receiptId ORDER BY position") suspend fun items(receiptId: Long): List<ItemEntity>
     @Query("UPDATE items SET name = :name, category = :category WHERE rawKey = :rawKey")
     suspend fun renameAll(rawKey: String, name: String, category: String)
+    @Query("SELECT * FROM name_mappings WHERE rawKey = :rawKey") suspend fun mapping(rawKey: String): NameMappingEntity?
 
     @Query(
         """SELECT i.id, i.receiptId, i.rawName, i.rawKey, i.name, i.category, i.quantity, i.unit, i.unitPrice,
@@ -233,6 +270,43 @@ interface AppDao {
     )
     suspend fun allItems(): List<ItemWithReceipt>
 
+    // --- katalog ---
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertCatalogProducts(p: List<CatalogProductEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertCatalogEans(e: List<CatalogEanEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertCatalogAliases(a: List<CatalogAliasEntity>)
+    @Query("DELETE FROM catalog_products") suspend fun clearCatalogProducts()
+    @Query("DELETE FROM catalog_eans") suspend fun clearCatalogEans()
+    @Query("DELETE FROM catalog_aliases") suspend fun clearCatalogAliases()
+    @Query("SELECT * FROM catalog_aliases") suspend fun catalogAliases(): List<CatalogAliasEntity>
+    @Query("SELECT * FROM catalog_products WHERE id = :id") suspend fun catalogProduct(id: String): CatalogProductEntity?
+    @Query("SELECT p.* FROM catalog_products p JOIN catalog_eans e ON e.productId = p.id WHERE e.ean = :ean LIMIT 1")
+    suspend fun catalogByEan(ean: String): CatalogProductEntity?
+    @Query("SELECT COUNT(*) FROM catalog_products") suspend fun catalogCount(): Int
+
+    @Upsert suspend fun addUnknownCode(c: UnknownCodeEntity)
+    @Query("DELETE FROM unknown_codes WHERE code = :code") suspend fun removeUnknownCode(code: String)
+    @Query("SELECT * FROM unknown_codes ORDER BY scannedAt DESC") suspend fun unknownCodes(): List<UnknownCodeEntity>
+    @Query(
+        """SELECT r.store AS store, MIN(i.rawName) AS rawName, MIN(i.name) AS name, COUNT(*) AS count
+           FROM items i JOIN receipts r ON r.id = i.receiptId
+           WHERE i.catalogId IS NULL AND i.rawKey NOT IN (SELECT rawKey FROM name_mappings)
+           GROUP BY r.store, i.rawKey ORDER BY count DESC"""
+    )
+    suspend fun unmatchedItems(): List<UnmatchedItem>
+    @Query("SELECT COUNT(DISTINCT i.rawKey) FROM items i WHERE i.catalogId IS NULL AND i.rawKey NOT IN (SELECT rawKey FROM name_mappings)")
+    fun unmatchedCount(): Flow<Int>
+
+    @Query("UPDATE items SET imageUrl = :imageUrl WHERE rawKey = :rawKey AND imageUrl IS NULL")
+    suspend fun setImageForRawKey(rawKey: String, imageUrl: String)
+
+    @Transaction
+    suspend fun replaceCatalog(p: List<CatalogProductEntity>, e: List<CatalogEanEntity>, a: List<CatalogAliasEntity>) {
+        clearCatalogAliases(); clearCatalogEans(); clearCatalogProducts()
+        p.chunked(500).forEach { insertCatalogProducts(it) }
+        e.chunked(500).forEach { insertCatalogEans(it) }
+        a.chunked(500).forEach { insertCatalogAliases(it) }
+    }
+
     @Transaction
     suspend fun insertReceiptWithItems(r: ReceiptEntity, items: List<ItemEntity>): Long {
         val id = insertReceipt(r)
@@ -248,9 +322,13 @@ interface AppDao {
 }
 
 @Database(
-    entities = [ReceiptEntity::class, ItemEntity::class, NameMappingEntity::class, ProductEntity::class],
-    version = 1,
+    entities = [
+        ReceiptEntity::class, ItemEntity::class, NameMappingEntity::class, ProductEntity::class,
+        CatalogProductEntity::class, CatalogEanEntity::class, CatalogAliasEntity::class, UnknownCodeEntity::class,
+    ],
+    version = 2,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): AppDao
@@ -258,5 +336,8 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "obchodsken.db").build()
+
+        fun inMemory(context: Context): AppDatabase =
+            Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
     }
 }

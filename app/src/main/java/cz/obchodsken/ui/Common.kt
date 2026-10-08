@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -231,6 +233,27 @@ fun ItemEditDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Zrušit") } },
     )
+}
+
+/** Fotka produktu, nebo aspoň ikona kategorie. */
+@Composable
+fun ProductThumb(imageUrl: String?, category: Category, size: androidx.compose.ui.unit.Dp = 48.dp) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.size(size),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(category.emoji, style = MaterialTheme.typography.titleLarge)
+            if (imageUrl != null) {
+                coil.compose.AsyncImage(
+                    model = imageUrl, contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.size(size).background(Color.White),
+                )
+            }
+        }
+    }
 }
 
 @Composable
