@@ -22,15 +22,25 @@ jobs:
         run: ./gradlew :app:testDebugUnitTest
       - name: Sestavení APK
         run: ./gradlew :app:assembleRelease
-      - run: cp app/build/outputs/apk/release/app-release.apk obchodsken.apk
+      - name: Verze
+        id: ver
+        run: echo "name=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)" >> "$GITHUB_OUTPUT"
+      - run: |
+          cp app/build/outputs/apk/release/app-release.apk obchodsken.apk
+          cp obchodsken.apk "obchodsken-${{ steps.ver.outputs.name }}.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: obchodsken-apk
           path: obchodsken.apk
+      # Jen push na aktuální commit – opakované spuštění starého buildu nesmí přepsat novější APK.
       - name: Zveřejnit jako release "latest"
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-${{ github.ref_name }}
           name: Obchodsken (${{ github.ref_name }})
           prerelease: true
-          files: obchodsken.apk
+          body: "Verze ${{ steps.ver.outputs.name }} (commit ${{ github.sha }})"
+          files: |
+            obchodsken.apk
+            obchodsken-${{ steps.ver.outputs.name }}.apk
