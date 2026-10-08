@@ -13,8 +13,8 @@ android {
         applicationId = "cz.obchodsken"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
         // Jen architektury telefonů (bez emulátorů x86) – menší APK.
         // -Parm64Only=true sestaví menší APK jen pro 64bit telefony.
         ndk {
