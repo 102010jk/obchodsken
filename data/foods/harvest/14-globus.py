@@ -322,11 +322,52 @@ def map_dry(txt):
     return "TRVANLIVE"
 
 
-def categorize(placements, unmapped, excluded):
+def map_codes(cats):
+    """Záložní mapování podle kódů productCategories (když stránka nemá placements)."""
+    txt = " ".join(norm(c) for c in cats)
+    if any(k in txt for k in ("drugstore", "cosmetic", "cleaning", "detergent", "hygiene", "paper",
+                              "household", "decorative", "lip_care", "eye_and", "hair", "pet_", "toys")):
+        return None
+    if "nonalcoholic" in txt or "nealko" in txt:
+        return "NAPOJE"
+    if any(k in txt for k in ("alcohol", "beer", "wine", "spirit", "lager", "liqueur", "rum", "gin", "vodka")):
+        return "ALKOHOL"
+    if any(k in txt for k in ("drinks", "juice", "water", "syrup", "soft_drink", "lemonade")):
+        return "NAPOJE"
+    if "frozen" in txt:
+        return "MRAZENE"
+    if any(k in txt for k in ("sausage", "delicatessen", "salami", "ham_", "cold_cut")):
+        return "UZENINY"
+    if any(k in txt for k in ("meat", "poultry", "fish", "seafood")):
+        return "MASO_RYBY"
+    if any(k in txt for k in ("milk", "cheese", "yog", "butter", "dairy", "cream")):
+        return "MLECNE"
+    if any(k in txt for k in ("fruit", "vegetable", "berr")):
+        return "OVOCE_ZELENINA"
+    if "egg" in txt:
+        return "VEJCE"
+    if any(k in txt for k in ("bread", "bakery", "pastr", "bun", "pecivo")):
+        return "PECIVO"
+    if any(k in txt for k in ("sweets", "chocolate", "candy", "biscuit", "cookie", "confection", "bars")):
+        return "SLADKOSTI"
+    if any(k in txt for k in ("durable", "canned", "pasta", "rice", "flour", "sauce", "spice", "oil",
+                              "cereal", "soup", "ketchup", "mustard", "legume", "tea", "coffee", "baking")):
+        return "TRVANLIVE"
+    return None
+
+
+def categorize(placements, unmapped, excluded, cats=()):
     for pl in placements:
         cat = map_placement(pl.get("department"), pl.get("category"), pl.get("subcategory"))
         if cat:
             return cat
+    if not placements and cats:
+        cat = map_codes(cats)
+        if cat:
+            excluded["fallback podle productCategories -> " + cat] += 1
+            return cat
+        excluded["bez placements, kódy nemapovány"] += 1
+        return None
     if placements:
         for pl in placements:
             unmapped[(pl.get("department"), pl.get("category"), pl.get("subcategory"))] += 1
@@ -410,7 +451,7 @@ def build():
         if not name:
             excluded["bez názvu"] += 1
             continue
-        cat = categorize(p.get("placements") or [], unmapped, excluded)
+        cat = categorize(p.get("placements") or [], unmapped, excluded, p.get("cats") or [])
         if not cat:
             continue
         rec = {"id": "globus-%s-%s" % (vanr, slugify(name)), "name": name, "category": cat}
