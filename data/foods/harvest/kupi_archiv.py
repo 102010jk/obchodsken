@@ -4,6 +4,8 @@
 Bere jen potraviny (podle kategorie na stránce). Produkty, které zrovna nejsou v akci, mají prázdné
 `stores` (obchod zatím neznámý). Běh jde přerušit a znovu spustit – hotové a vyřazené stránky přeskočí.
 Volby: --commit-every N  (průběžně git commit + push výstupu, výchozí 0 = ne)
+       --shard I/N       (paralelní běh: tahle kopie zpracuje jen každý N-tý produkt od I-tého,
+                          výstup kupi-archiv-I.jsonl; spusť N kopií s I = 0..N-1)
 """
 import importlib.util
 import json
@@ -54,7 +56,7 @@ def sitemap_slugs():
 
 def git_commit(n):
     try:
-        subprocess.run(["git", "add", str(OUT)], cwd=ROOT, check=True, capture_output=True)
+        subprocess.run(["git", "add", *map(str, OUT.parent.glob("kupi-archiv*.jsonl"))], cwd=ROOT, check=True, capture_output=True)
         subprocess.run(["git", "commit", "-q", "-m", f"WIP: kupi.cz archive harvest ({n} items)\n\n"
                         "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"],
                        cwd=ROOT, capture_output=True)
@@ -64,15 +66,26 @@ def git_commit(n):
 
 
 def main(argv):
+    global OUT, SKIPPED
     commit_every = int(argv[argv.index("--commit-every") + 1]) if "--commit-every" in argv else 0
+    shard, nshards = 0, 1
+    if "--shard" in argv:
+        shard, nshards = map(int, argv[argv.index("--shard") + 1].split("/"))
+        OUT = OUT.with_name(f"kupi-archiv-{shard}.jsonl")
+        SKIPPED = SKIPPED.with_name(f"kupi-archiv-vyrazeno-{shard}.txt")
+        kupi.OUT = OUT
     records = kupi.load_existing()
     have = set(records)
+    for f in OUT.parent.glob("kupi-archiv*.jsonl"):        # co už mají ostatní kopie / dřívější běh
+        have |= {json.loads(l)["id"] for l in f.open(encoding="utf-8") if l.strip()}
+    for f in SKIPPED.parent.glob("kupi-archiv-vyrazeno*.txt"):
+        have |= {f"kupi-{x}" for x in f.read_text(encoding="utf-8").split()}
     if CURRENT.exists():
         have |= {json.loads(l)["id"] for l in CURRENT.open(encoding="utf-8") if l.strip()}
     SKIPPED.parent.mkdir(parents=True, exist_ok=True)
     skipped = set(SKIPPED.read_text(encoding="utf-8").split()) if SKIPPED.exists() else set()
 
-    slugs = sitemap_slugs()
+    slugs = sitemap_slugs()[shard::nshards]
     todo = [s for s in slugs if f"kupi-{s}" not in have and s not in skipped
             and kupi.SLUG_RE.fullmatch(s) and not (set(s.split("-")) & NONFOOD_TOKENS)]
     print(f"Sitemapa: {len(slugs)} produktů, hotovo {len(records)}, vyřazeno dříve {len(skipped)}, "
