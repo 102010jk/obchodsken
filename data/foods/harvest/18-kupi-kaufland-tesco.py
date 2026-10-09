@@ -214,7 +214,7 @@ def fetch_detail(slug):
     name = (prod.get("name") or "").strip()
     if not name:
         return None
-    m = SUB_RE.search(page)
+    m = SUB_RE.search(page.replace("\xa0", " "))
     top_slug, sub_slug, sub_name = (m.group(1), m.group(2), html_lib.unescape(m.group(3)).strip()) if m else (None, None, None)
     lines = plain_lines(page)
     size_value, size_unit = parse_size(lines, name)
