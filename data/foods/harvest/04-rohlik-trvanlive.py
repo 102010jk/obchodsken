@@ -9,6 +9,7 @@ Pravidla: jen data z API Rohlíku (name, brand, textualAmount, slug, images), ž
 Při 403 se script ukončí bez zápisu (blokaci neobcházíme).
 """
 import json
+import os
 import re
 import sys
 import time
@@ -215,15 +216,34 @@ def build_record(p):
 
 
 def main():
-    print("1) výčet ID z kategorie", CATEGORY_ID)
-    try:
-        ids = fetch_category_ids()
-        print(f"   celkem ID: {len(ids)}")
-        print("2) detaily po dávkách po", DETAIL_BATCH)
-        details = fetch_details(ids)
-    except Blocked as e:
-        print(f"Web vrací 403 ({e}). Končím bez zápisu, blokaci neobcházím.", file=sys.stderr)
-        return 2
+    # Volitelná cache (HARVEST_CACHE=cesta.json): při existenci se nic nestahuje z webu.
+    cache = Path(os.environ["HARVEST_CACHE"]) if os.environ.get("HARVEST_CACHE") else None
+    if cache and cache.exists():
+        saved = json.loads(cache.read_text(encoding="utf-8"))
+        ids, details = saved["ids"], saved["details"]
+        print(f"načteno z cache {cache}: {len(ids)} ID, {len(details)} detailů")
+    else:
+        print("1) výčet ID z kategorie", CATEGORY_ID)
+        try:
+            ids = fetch_category_ids()
+            print(f"   celkem ID: {len(ids)}")
+            print("2) detaily po dávkách po", DETAIL_BATCH)
+            details = fetch_details(ids)
+        except Blocked as e:
+            print(f"Web vrací 403 ({e}). Končím bez zápisu, blokaci neobcházím.", file=sys.stderr)
+            return 2
+        if cache:
+            cache.write_text(json.dumps({"ids": ids, "details": details}, ensure_ascii=False), encoding="utf-8")
+
+    if os.environ.get("HARVEST_SUBCAT_DUMP"):
+        dump = {}
+        for p in details:
+            d = dump.setdefault(str(p.get("mainCategoryId")), {"count": 0, "samples": []})
+            d["count"] += 1
+            if len(d["samples"]) < 4:
+                d["samples"].append(p.get("name"))
+        Path(os.environ["HARVEST_SUBCAT_DUMP"]).write_text(
+            json.dumps(dump, ensure_ascii=False, indent=1), encoding="utf-8")
 
     records, seen_ids, skipped = [], set(), 0
     for p in details:

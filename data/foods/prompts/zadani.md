@@ -28,3 +28,15 @@ obchodech = jeden záznam s více `stores`).
 Rohlík API (ověřeno): ID v kategorii `https://www.rohlik.cz/api/v1/categories/normal/<KAT>/products?limit=100`
 (`productIds`), detaily `https://www.rohlik.cz/api/v1/products?products=<ID>&products=<ID>` (name, brand,
 textualAmount, slug, images, weightedItem), stránka produktu `https://www.rohlik.cz/<id>-<slug>`.
+
+## Druhé kolo – hromadný sběr a kupi.cz
+Sběrači 01–05 (Rohlík), 06–07 (Košík), 08–11 (Lidl, Billa), 12 (Albert), 14 (Globus): režim hromadného sběru
+(celý sortiment, skripty v `data/foods/harvest/`). Penny (13) víc než aktuální nabídku na webu nemá.
+
+Kupi.cz (`haiku-kupi.md`) – aktuální akce kamenných obchodů, skript jde pouštět každý týden:
+| # | soubor | obchody |
+|---|---|---|
+| 17 | `17-kupi-lidl-penny.jsonl` | Lidl, Penny |
+| 18 | `18-kupi-kaufland-tesco.jsonl` | Kaufland, Tesco |
+| 19 | `19-kupi-albert-billa.jsonl` | Albert, Billa |
+| 20 | `20-kupi-ostatni.jsonl` | Globus, Norma, Coop, Makro, CBA, Hruška, Flop, JIP |

@@ -48,7 +48,7 @@ def check(o):
             if not isinstance(s, dict) or not s.get("store"):
                 err.append("store bez názvu"); continue
             if s["store"] not in STORES:
-                err.append(f"neznámý obchod {s['store']!r} (varování)")
+                print(f"varování: neznámý obchod {s['store']!r} u {o.get('id')}")
             if s["store"] in seen:
                 err.append(f"obchod {s['store']} dvakrát")
             seen.add(s["store"])
