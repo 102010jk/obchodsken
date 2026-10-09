@@ -7,3 +7,7 @@ local.properties
 captures/
 obchodsken.apk
 .kotlin/
+
+# mezivýsledky sběračů potravin
+data/foods/harvest/.cache/
+data/foods/harvest/**/__pycache__/
