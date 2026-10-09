@@ -42,7 +42,7 @@ HOUSE = 4005           # Praha-Čakovice
 AKCE_URL = "https://www.globus.cz/globus/hypermarket/akcni-nabidka/"
 SITEMAP_INDEX = "https://www.globus.cz/sitemap.xml"
 PRODUCT_MARK = "/globus/hypermarket/cela-nabidka/p/"
-AKCE_API = "https://www.globus.cz/api/v1/gsoa/actionOffers/houses/%d/actionProductsCatalog?page=%d&pageSize=100" % (HOUSE, 0)
+AKCE_API = "https://www.globus.cz/api/v1/gsoa/actionOffers/houses/%d/actionProductsCatalog?page=%d&pageSize=50" % (HOUSE, 0)
 
 
 class Stop(Exception):
@@ -240,7 +240,9 @@ def harvest_products(limit, refresh_sitemap):
 
 
 def harvest_akce():
-    products, page = [], 1
+    """Akční nabídka: stránkování page/pageSize=50 (pageSize 100 API vrací jen 596 z 662 položek)."""
+    products, seen, page = [], set(), 1
+    total = None
     while True:
         url = AKCE_API.replace("page=0", "page=%d" % page)
         status, body = fetch(url, accept="application/json")
@@ -248,11 +250,16 @@ def harvest_akce():
             log("akce: stránka %d nedostupná (%s), přerušuji" % (page, status))
             return
         d = json.loads(body)
+        total = d.get("totalCount", total)
         items = d.get("products") or []
-        products += [slim(p, None) for p in items]
+        for p in items:
+            if p.get("vanr") and p["vanr"] not in seen:
+                seen.add(p["vanr"])
+                products.append(slim(p, None))
         if not d.get("paginationShowMore") or not items:
             break
         page += 1
+    log("akce: API totalCount %s, staženo unikátních %d" % (total, len(products)))
     with open(AKCE, "w", encoding="utf-8") as f:
         json.dump({"fetched": datetime.date.today().isoformat(), "total": len(products),
                    "products": products}, f, ensure_ascii=False)
@@ -302,6 +309,10 @@ def map_placement(dept, cat, sub):
         return "NAPOJE"
     if d == "svet zvirat":
         return "ZVIRATA" if "krmiv" in txt else None
+    if d == "vino, alkohol":
+        return "NAPOJE" if "nealk" in txt else "ALKOHOL"
+    if d == "detsky svet":
+        return "TRVANLIVE" if ("prikrm" in txt or "kojen" in txt) else None
     return None
 
 
