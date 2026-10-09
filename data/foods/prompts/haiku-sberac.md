@@ -30,3 +30,13 @@ nedělej git commit ani push. Cíl: 40–60 různých potravin; kvalita je důle
 - Záznamy piš skriptem (python `json.dumps(..., ensure_ascii=False)`), ne ručně.
 - Na konci spusť `python3 data/foods/validate.py data/foods/raw/{{SOUBOR}}` a oprav všechny chyby.
 - Odpověz krátce: kolik záznamů, odkud, co nešlo a proč (max 10 řádků).
+
+## Režim hromadného sběru (když ho zadání uvádí)
+Cílem je **co nejvíc produktů** – celý sortiment dané kategorie, ne výběr.
+- Napiš skript (python3, ulož ho do `data/foods/harvest/<stejný název jako výstup>.py`), který projde **všechny**
+  stránky a podkategorie, stáhne detaily po dávkách a zapíše výstup. Skript musí jít spustit znovu.
+- `id` = `<obchod>-<id produktu v obchodě>-<slug>` (zaručeně unikátní).
+- Kategorii urči podle podkategorie obchodu (mapovací tabulka ve skriptu), ne odhadem po jednom.
+- Nepotraviny vyřaď (drogerie, kuchyňské potřeby, květiny…), pokud zadání neříká jinak.
+- Šetrnost: max ~3 požadavky za sekundu, při 429/5xx počkej a zkus znovu (exponenciálně), po 5 neúspěších přeskoč.
+- Pravidla 1–8 platí dál (jen skutečná data, žádné vymýšlení). Limit 40–60 záznamů a ~80 požadavků neplatí.
