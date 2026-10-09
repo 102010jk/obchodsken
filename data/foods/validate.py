@@ -40,8 +40,8 @@ def check(o):
         if not isinstance(e, str) or not ean_ok(e):
             err.append(f"neplatný EAN {e!r}")
     stores = o.get("stores")
-    if not isinstance(stores, list) or not stores:
-        err.append("stores musí mít aspoň jeden obchod")
+    if not isinstance(stores, list):
+        err.append("stores musí být seznam (prázdný = obchod neznámý, jen u archivu)")
     else:
         seen = set()
         for s in stores:

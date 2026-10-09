@@ -59,7 +59,7 @@ LD_RE = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
 PRODUCT_URL = re.compile(r"^https://www\.kupi\.cz/sleva/([^/?#\s]+)$")
 SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SUBCAT_RE = re.compile(
-    r'kategorii <a href="/slevy/([^"?#]+)"[^>]*>[^<]*</a>(?:\s*a podkategorii <a href="/slevy/([^"?#]+)")?',
+    r'kategorii <a href="/slevy/([^"?#]+)"[^>]*>[^<]*</a>(?:\s*a\s+podkategorii <a href="/slevy/([^"?#]+)")?',
     re.S)
 SIZE_RE = re.compile(r'discount_amount">\s*/\s*(\d+(?:[.,]\d+)?)\s*(kg|g|ml|cl|l|ks)\b')
 
@@ -275,7 +275,7 @@ def category_for(parent, sub):
     return "OSTATNI"
 
 
-def build_record(slug, html, listing_cat):
+def build_record(slug, html, listing_cat, allow_no_store=False):
     prod = ld_product(html)
     if not prod:
         return None, "bez JSON-LD Product"
@@ -294,7 +294,7 @@ def build_record(slug, html, listing_cat):
             n = canon_store(o["offeredBy"])
             if n not in stores:
                 stores.append(n)
-    if not stores:
+    if not stores and not allow_no_store:
         return None, "bez obchodu v akci"
 
     name = str(prod.get("name") or "").strip()

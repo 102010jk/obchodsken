@@ -19,7 +19,7 @@ v `supabase/schema.sql`, takže import do Supabase je jen přepis řádků.
 | `category` | ano | `OVOCE_ZELENINA, PECIVO, MASO_RYBY, UZENINY, MLECNE, VEJCE, MRAZENE, TRVANLIVE, SLADKOSTI, NAPOJE, ALKOHOL, DROGERIE, ZVIRATA, OSTATNI` |
 | `size_value` + `size_unit` | ne | velikost balení; jednotka `kg`, `l` nebo `ks` (500 g = `0.5` + `kg`). Buď obě, nebo ani jedno |
 | `eans` | ne | čárové kódy EAN-13/EAN-8 se správnou kontrolní číslicí |
-| `stores` | ano, ≥1 | obchody; každý se svým názvem na účtence a odkazem na produkt |
+| `stores` | ano | obchody; každý se svým názvem na účtence a odkazem na produkt. Prázdný seznam jen u archivu kupi.cz (produkt se v ČR prodává, obchod zatím neznámý) |
 | `stores[].store` | ano | `Lidl, Kaufland, Albert, Billa, Penny, Tesco, Globus, Rohlík, Košík, Makro, Norma, Coop` – kamenné i internetové obchody |
 | `stores[].receipt_name` | ano* | název přesně jak je vytištěný na účtence **tohoto** obchodu. *Smí být `null`, pokud ho nemáme doložený – nikdy se nevymýšlí |
 | `stores[].receipt_name_source` | – | `"uctenka"` = viděno na skutečné účtence; jinak `null` |
