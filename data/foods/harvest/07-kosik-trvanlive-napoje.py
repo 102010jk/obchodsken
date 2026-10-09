@@ -155,7 +155,8 @@ def listing(slug, brand):
             for it in f.get("items") or []:
                 if it.get("count"):
                     brands.append((str(it["id"]), it["count"]))
-    return {"total": p.get("totalCount") or 0, "items": items, "subs": subs, "brands": brands}, API + "?" + urllib.parse.urlencode(q)
+    return {"total": p.get("totalCount") or 0, "items": items, "subs": subs, "brands": brands,
+            "has_products": "products" in d and bool(p)}, API + "?" + urllib.parse.urlencode(q)
 
 # ---------- sběr ----------
 found = {}        # product id -> {"item": ..., "cats": [...], "sources": [...]}
@@ -182,7 +183,7 @@ def visit(slug, brand, parent_path, base, depth):
     if res is None:
         return
     path = parent_path + [slug]
-    if res["total"] <= len(res["items"]):
+    if res["has_products"] and res["total"] <= len(res["items"]):
         add(res, path, base, url)
         return
     if res["subs"]:
