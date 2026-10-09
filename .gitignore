@@ -11,3 +11,5 @@ obchodsken.apk
 # mezivýsledky sběračů potravin
 data/foods/harvest/.cache/
 data/foods/harvest/**/__pycache__/
+data/foods/harvest/cache/
+data/foods/harvest/**/*.tmp
