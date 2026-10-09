@@ -307,6 +307,10 @@ def main():
         rows.append(build_record(p, category))
 
     rows.sort(key=lambda r: r["id"])
+    print(f"Unikátních produktů z API: {len(products)} (po kořenech: {by_root})", file=sys.stderr)
+    print(f"Podle kategorie: {dict(sorted(stats_cat.items()))}", file=sys.stderr)
+    print(f"Vyřazeno (nepotraviny z MAP): {sum(skipped.values())} – {skipped}", file=sys.stderr)
+    print(f"Nezařazeno do MAP: {sum(unmapped.values())} – {unmapped}", file=sys.stderr)
     if not rows:
         print("Nic k zápisu – výstup nepřepsán.", file=sys.stderr)
         return 1
@@ -318,10 +322,6 @@ def main():
     os.replace(tmp, OUT)
 
     print(f"\nZápis: {len(rows)} záznamů -> {OUT}", file=sys.stderr)
-    print(f"Unikátních produktů z API: {len(products)} (po kořenech: {by_root})", file=sys.stderr)
-    print(f"Podle kategorie: {dict(sorted(stats_cat.items()))}", file=sys.stderr)
-    print(f"Vyřazeno (nepotraviny): {sum(skipped.values())} – {skipped}", file=sys.stderr)
-    print(f"Nezařazeno do MAP (vyřazeno): {sum(unmapped.values())} – {unmapped}", file=sys.stderr)
     print(f"Požadavky: {stats['requests']}, opakování: {stats['retries']}, "
           f"přeskočené stránky: {stats['failed_pages']}, z cache: {stats['from_cache']}", file=sys.stderr)
     return 0
