@@ -34,6 +34,7 @@ private val tabs = listOf(
     Tab("receipts", "Účtenky", AppIcons.Receipt),
     Tab("scan", "Skenovat", AppIcons.Barcode),
     Tab("products", "Položky", Icons.Default.ShoppingCart),
+    Tab("foods", "Potraviny", AppIcons.Food),
     Tab("stats", "Přehled", AppIcons.Chart),
 )
 
@@ -76,9 +77,13 @@ fun AppRoot() {
             composable("receipts") { ReceiptsScreen(nav, snackbar) }
             composable("scan") { ScanScreen(nav) }
             composable("products") { ProductsScreen(nav) }
+            composable("foods") { FoodsScreen(nav) }
             composable("stats") { StatsScreen(snackbar) }
             composable("receipt/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                 ReceiptDetailScreen(it.arguments!!.getLong("id"), nav)
+            }
+            composable("food/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
+                FoodEditScreen(it.arguments!!.getLong("id"), nav)
             }
             composable("product/{name}") {
                 ProductDetailScreen(Uri.decode(it.arguments!!.getString("name")!!), nav)

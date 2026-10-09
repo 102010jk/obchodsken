@@ -48,6 +48,7 @@ data class ImportState(
 
 class Repository(private val context: Context, private val db: AppDatabase, private val scope: CoroutineScope) {
     val dao = db.dao()
+    val foods = db.foods()
     private val ocr by lazy { ReceiptOcr() }
     val catalog = Catalog(context, dao)
     private val importMutex = Mutex()

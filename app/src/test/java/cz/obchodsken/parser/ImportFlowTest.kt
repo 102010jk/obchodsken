@@ -1,6 +1,8 @@
 package cz.obchodsken.parser
 
+import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import cz.obchodsken.App
 import cz.obchodsken.data.AppDatabase
 import cz.obchodsken.data.ImportOutcome
 import cz.obchodsken.data.Repository
@@ -28,6 +30,11 @@ class ImportFlowTest {
     }
 
     @Test fun importMatchesCatalogAndDetectsDuplicates() = runBlocking {
+        // App při startu nahraje katalog do své DB na pozadí a uloží si značku – počkat na to a značku smazat,
+        // jinak by testovací DB katalog přeskočila (podle toho, kdo doběhne dřív).
+        val app = ApplicationProvider.getApplicationContext<App>()
+        app.repo.catalog.ensureLoaded()
+        app.getSharedPreferences("catalog", Context.MODE_PRIVATE).edit().clear().commit()
         val db = AppDatabase.inMemory(ApplicationProvider.getApplicationContext())
         val repo = Repository(ApplicationProvider.getApplicationContext(), db, CoroutineScope(Dispatchers.Default))
 

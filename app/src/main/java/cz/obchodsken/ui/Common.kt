@@ -93,6 +93,10 @@ object AppIcons {
         "M22,16V4c0,-1.1 -0.9,-2 -2,-2H8c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2zM11,12l2.03,2.71L16,11l4,5H8l3,-4zM2,6v14c0,1.1 0.9,2 2,2h14v-2H4V6H2z",
     )
     val Barcode = icon("barcode", "M2,4h2v16H2zM5,4h1v16H5zM7,4h2v16H7zM10,4h1v16h-1zM13,4h2v16h-2zM16,4h1v16h-1zM18,4h1v16h-1zM20,4h2v16h-2z")
+    val Food = icon(
+        "food",
+        "M11,9H9V2H7v7H5V2H3v7c0,2.12 1.66,3.84 3.75,3.97V22h2.5v-9.03C11.34,12.84 13,11.12 13,9V2h-2V9zM16,6v8h2.5v8H21V2C18.24,2 16,4.24 16,6z",
+    )
     val Chart = icon("chart", "M5,9.2h3V19H5zM10.6,5h2.8v14h-2.8zM16.2,13H19v6h-2.8z")
     val Receipt = icon(
         "receipt",

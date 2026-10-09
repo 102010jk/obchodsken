@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Aktualizace z verze 1 (první APK) nesmí smazat data ani spadnout. */
+/** Aktualizace ze starší verze aplikace nesmí smazat data ani spadnout. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class MigrationTest {
@@ -30,5 +30,15 @@ class MigrationTest {
         db.query("SELECT name FROM name_mappings").use { it.moveToFirst(); assertEquals("Odpadkové pytle", it.getString(0)) }
         db.query("SELECT COUNT(*) FROM products").use { it.moveToFirst(); assertEquals(1, it.getInt(0)) }
         db.query("SELECT COUNT(*) FROM catalog_products").use { it.moveToFirst(); assertEquals(0, it.getInt(0)) }
+    }
+
+    @Test fun migrate2To3AddsEmptyFoodTables() {
+        helper.createDatabase("test3.db", 2).apply {
+            execSQL("INSERT INTO name_mappings (rawKey, name, category) VALUES ('odpad.pytle', 'Odpadkové pytle', 'DROGERIE')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("test3.db", 3, true)
+        db.query("SELECT COUNT(*) FROM name_mappings").use { it.moveToFirst(); assertEquals(1, it.getInt(0)) }
+        db.query("SELECT COUNT(*) FROM foods").use { it.moveToFirst(); assertEquals(0, it.getInt(0)) }
     }
 }

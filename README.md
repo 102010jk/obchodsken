@@ -10,6 +10,10 @@ Android aplikace na účtenky a čárové kódy.
 - **Naskenuj čárový kód** → název, značka, kategorie, složení a Nutri-Score z Open Food Facts.
   Kód jde propojit s položkou z účtenek – pak uvidíš, kolikrát a za kolik jsi produkt kupoval.
 - **Položky** – všechny koupené produkty, historie cen, min/max/průměr, slevy.
+- **Potraviny** – vlastní databáze potravin, kterou plníš ručně (na začátku je prázdná). Povinné je jméno
+  potraviny, název na účtence a aspoň jeden obchod; nepovinně velikost v kg, příbuzné potraviny,
+  odkaz na obrázek a odkaz na produkt v obchodě. Data jsou v telefonu (tabulky `foods`, `food_stores`,
+  `food_relations`) a nová verze aplikace je nepřepíše.
 - **Přehled** – útraty po měsících a kategoriích, export všech položek do CSV.
 - Opravíš-li název položky, aplikace si ho zapamatuje a použije u všech dalších účtenek.
 - Duplicitní účtenky (např. papírová + elektronická verze téhož nákupu) se poznají a přeskočí.
