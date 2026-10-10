@@ -40,7 +40,8 @@ jobs:
           tag_name: latest-${{ github.ref_name }}
           name: Obchodsken (${{ github.ref_name }})
           prerelease: true
-          body: "Verze ${{ steps.ver.outputs.name }} (commit ${{ github.sha }})"
+          body: "Verze ${{ steps.ver.outputs.name }} (commit ${{ github.sha }}). foods.jsonl = databáze potravin (formát data/foods/FORMAT.md)."
           files: |
             obchodsken.apk
+            data/foods/foods.jsonl
             obchodsken-${{ steps.ver.outputs.name }}.apk
